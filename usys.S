@@ -29,5 +29,8 @@ SYSCALL(getpid)
 SYSCALL(sbrk)
 SYSCALL(sleep)
 SYSCALL(uptime)
+
 SYSCALL(getProcCount)
 SYSCALL(getReadCount)
+SYSCALL(thread_create)
+SYSCALL(thread_wait)

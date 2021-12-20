@@ -20,5 +20,8 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+
 #define SYS_getProcCount 22
 #define SYS_getReadCount 23
+#define SYS_thread_create 24
+#define SYS_thread_wait 25

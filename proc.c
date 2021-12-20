@@ -89,6 +89,8 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
 
+  p->threads = 0;
+
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -142,6 +144,7 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
+
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
@@ -161,16 +164,24 @@ growproc(int n)
   uint sz;
   struct proc *curproc = myproc();
 
+
   sz = curproc->sz;
   if(n > 0){
-    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0) {
       return -1;
+    }
   } else if(n < 0){
-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0) {
       return -1;
+    }
   }
+  acquire(&ptable.lock);
+
   curproc->sz = sz;
   switchuvm(curproc);
+
+  release(&ptable.lock);
+
   return 0;
 }
 
@@ -283,6 +294,10 @@ wait(void)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->parent != curproc)
         continue;
+      
+      if (p->pid == curproc->pid)
+        continue;
+
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
@@ -533,7 +548,7 @@ procdump(void)
   }
 }
 
-// (Manually added) returns the number of active processes
+// (Added by me) returns the number of active processes
 int getProcCount(void) {
   int proc_counter = 0;
   struct proc *p;
@@ -544,11 +559,112 @@ int getProcCount(void) {
   return proc_counter;
 }
 
-// (Manually added) returns the number of read attempts whence
+// (Added by me) returns the number of read attempts whence
 // the kernel boots
 int getReadCount(void) {
   
   extern int read_count;
 
   return read_count;
+}
+
+// (Added by me) creates a thread and returns the thread ID
+int thread_create(void* stack) {
+  int i, pid;
+  struct proc *np;
+  struct proc *curproc = myproc();
+
+  // Allocate process.
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  ++(curproc->threads);
+  np->stack_top = (int)((char*) stack + PGSIZE);
+
+  acquire(&ptable.lock);
+  np->pgdir = curproc->pgdir;
+  np->sz = curproc->sz;
+  release(&ptable.lock);
+
+  // cprintf("Parent: sz: %d, ebp: %d, esp: %d\n", curproc->sz, curproc->tf->ebp, curproc->tf->esp);
+  // cprintf("Bytes to copy: %d\n", parent_occupied_stack);
+
+  int parent_occupied_stack = curproc->stack_top - curproc->tf->esp;
+  np->tf->esp = np->stack_top - parent_occupied_stack;
+ 
+  memmove((void*) np->tf->esp, (void*) curproc->tf->esp, parent_occupied_stack);
+
+  np->parent = curproc;
+  *np->tf = *curproc->tf;
+
+  np->tf->eax = 0;
+
+  np->tf->esp = np->stack_top - parent_occupied_stack;
+  np->tf->ebp = np->stack_top - (curproc->stack_top - curproc->tf->ebp);
+
+
+  for(i = 0; i < NOFILE; i++)
+    if(curproc->ofile[i])
+      np->ofile[i] = filedup(curproc->ofile[i]);
+  np->cwd = idup(curproc->cwd);
+
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  pid = curproc->pid;
+  np->pid = pid;
+
+  acquire(&ptable.lock);
+
+  np->state = RUNNABLE;
+
+  release(&ptable.lock);
+
+  return pid;
+}
+
+// (Added by me) makes the calling process to wait for its threads
+int thread_wait(void) {
+  struct proc *p;
+  int havekids, pid;
+  struct proc *curproc = myproc();
+  
+  if (curproc->threads > 0) {
+    acquire(&ptable.lock);
+    for(;;){
+      // Scan through table looking for exited children.
+      havekids = 0;
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->parent != curproc)
+          continue;
+        
+        if (p->pid == curproc->pid) {
+          havekids = 1;
+          if(p->state == ZOMBIE){
+            // Found one.
+            pid = p->pid;
+            kfree(p->kstack);
+            p->kstack = 0;
+            p->pid = 0;
+            p->parent = 0;
+            p->name[0] = 0;
+            p->killed = 0;
+            p->state = UNUSED;
+            release(&ptable.lock);
+            return pid;
+          }
+        }
+      }
+
+      // No point waiting if we don't have any children.
+      if(!havekids || curproc->killed){
+        release(&ptable.lock);
+        return -1;
+      }
+
+      // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+      sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+    }
+  }
+  return -1;
 }
