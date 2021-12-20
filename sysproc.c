@@ -107,6 +107,8 @@ int sys_getReadCount(void) {
 
 // (Added by me) creates a thread and returns the thread ID
 int sys_thread_create(void) {
+  // Fetching the argument passed to the 'thread_create' function
+  // which is the address of the allocated stack.
   char *stack;
   if (argptr(0, &stack, sizeof (void*)) < 0)
     return -1;

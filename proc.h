@@ -50,8 +50,8 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  int stack_top;
-  int threads;
+  int stack_top;               // The top of the stack for this process
+  int threads;                 // The number of child threads this process has
 };
 
 // Process memory is laid out contiguously, low addresses first:

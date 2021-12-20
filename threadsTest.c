@@ -1,4 +1,5 @@
 #include "thread_creator.c"
+#include <stddef.h>
 
 int x;
 
@@ -18,24 +19,24 @@ void arger(void* args) {
 
 int main() {
 	// Test Phase 1:
-	// x = 0;
+	x = 0;
 
-	// int thread_id = thread_creator(&incrementor, args);
-	// if (thread_id == -1)
-	// 	return -1;
+	int thread_id = thread_creator(&incrementor, NULL);
+	if (thread_id == -1)
+		return -1;
 	
-	// for (int i = 0; i < 3; ++i) {
-	// 	printf(1, "Parent: %d\n", x);
-	// 	sleep(200);
-	// 	x += 2;
-	// }
+	for (int i = 0; i < 3; ++i) {
+		printf(1, "Parent: %d\n", x);
+		sleep(200);
+		x += 2;
+	}
 
-	// thread_wait();
+	thread_wait();
 
 	// Test Phase 2:
 	int args[2] = {2000, 1000};
 	
-	int thread_id = thread_creator(&arger, (void*) args);
+	thread_id = thread_creator(&arger, (void*) args);
 	if (thread_id == -1)
 		return -1;
 	thread_id = thread_creator(&arger, (void*) (args + 1));

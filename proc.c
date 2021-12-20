@@ -89,6 +89,8 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
 
+  // (Added by me) When this thread starts, it must know that it
+  // has no child threads.
   p->threads = 0;
 
   release(&ptable.lock);
@@ -164,18 +166,22 @@ growproc(int n)
   uint sz;
   struct proc *curproc = myproc();
 
+  // (Added by me) Locking the page table to prevent those
+  // naughty threads from causing trouble.
+  acquire(&ptable.lock);
 
   sz = curproc->sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0) {
+      release(&ptable.lock);
       return -1;
     }
   } else if(n < 0){
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0) {
+      release(&ptable.lock);
       return -1;
     }
   }
-  acquire(&ptable.lock);
 
   curproc->sz = sz;
   switchuvm(curproc);
@@ -579,20 +585,21 @@ int thread_create(void* stack) {
     return -1;
   }
 
+  // The parent process here has one more thread.
   ++(curproc->threads);
+  // Initialising The stack_top of the new thread.
   np->stack_top = (int)((char*) stack + PGSIZE);
 
+  // Locking so that while the new thread is picking
+  // parent's page directory, the parent cannot change it.
   acquire(&ptable.lock);
   np->pgdir = curproc->pgdir;
   np->sz = curproc->sz;
   release(&ptable.lock);
 
-  // cprintf("Parent: sz: %d, ebp: %d, esp: %d\n", curproc->sz, curproc->tf->ebp, curproc->tf->esp);
-  // cprintf("Bytes to copy: %d\n", parent_occupied_stack);
-
+  // Copying the content of the parent stack into the thread's.
   int parent_occupied_stack = curproc->stack_top - curproc->tf->esp;
-  np->tf->esp = np->stack_top - parent_occupied_stack;
- 
+  np->tf->esp = np->stack_top - parent_occupied_stack; 
   memmove((void*) np->tf->esp, (void*) curproc->tf->esp, parent_occupied_stack);
 
   np->parent = curproc;
@@ -611,6 +618,7 @@ int thread_create(void* stack) {
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
+// The new thread must inherit the parent's process id.
   pid = curproc->pid;
   np->pid = pid;
 
@@ -629,6 +637,7 @@ int thread_wait(void) {
   int havekids, pid;
   struct proc *curproc = myproc();
   
+  // The parent must wait only if it has at least a child thread.
   if (curproc->threads > 0) {
     acquire(&ptable.lock);
     for(;;){
