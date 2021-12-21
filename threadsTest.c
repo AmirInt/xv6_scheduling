@@ -1,4 +1,6 @@
-#include "thread_creator.c"
+#include "types.h"
+#include "stat.h"
+#include "user.h"
 #include <stddef.h>
 
 int x;
