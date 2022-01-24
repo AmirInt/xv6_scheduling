@@ -28,6 +28,7 @@ int getProcCount(void);
 int getReadCount(void);
 int thread_create(void* stack);
 int thread_wait(void);
+int setPriority(int priority);
 
 // ulib.c
 int stat(const char*, struct stat*);

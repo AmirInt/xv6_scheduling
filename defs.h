@@ -126,6 +126,7 @@ int             getProcCount(void);
 int             getReadCount(void);
 int             thread_create(void* stack);
 int             thread_wait(void);
+int             setPriority(int priority);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

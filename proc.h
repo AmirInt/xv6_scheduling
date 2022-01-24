@@ -52,6 +52,7 @@ struct proc {
 
   int stack_top;               // The top of the stack for this process
   int threads;                 // The number of child threads this process has
+  int priority;                // The priority in priority scheduling
 };
 
 // Process memory is laid out contiguously, low addresses first:

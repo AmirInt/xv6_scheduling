@@ -93,6 +93,7 @@ found:
   // has no child threads.
   p->threads = 0;
 
+  p->priority = 3;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -331,6 +332,19 @@ wait(void)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
+//(Added by hadiinz) set priority for priority scheduling
+int
+setPriority(int priority)
+{
+  struct proc *p = myproc();
+  if (1 <= priority && priority <= 6)
+  {
+    p->priority = priority;
+  }
+  else 
+    p->priority = 5;
+  return 1;
+}
 
 // (Added by AmirInt) Round-Robin-schedules the CPU
 void rr_scheduler(struct cpu *c, struct proc *p, uint *tix) {
@@ -362,7 +376,49 @@ void rr_scheduler(struct cpu *c, struct proc *p, uint *tix) {
     *tix = ticks;
   }
 }
+//added by Hadiinz (priority scheduling)
+void
+priority_scheduler(struct cpu *c, struct proc *p)
+{
+  struct proc *p_high = 0;
+  int hasRunnable = 0;
+  acquire(&ptable.lock);
+  for(; p < &ptable.proc[NPROC]; p++){
+    if (p->state == RUNNABLE)
+    {
+      p_high = p;
+      hasRunnable = 1;
+      break;
+    }
+  }
+  if (hasRunnable == 1)
+  {
+    //find the first process having high priority
+    for(; p < &ptable.proc[NPROC]; p++){
+      if (p->state != RUNNABLE)
+        continue;
+      
+      if (p->priority < p_high->priority)
+      {
+        p_high = p;
 
+      }
+    }
+    c->proc = p_high;
+    switchuvm(p_high);
+    p_high->state = RUNNING;
+
+    swtch(&(c->scheduler), p_high->context);
+    switchkvm();
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+
+  }
+  release(&ptable.lock);
+  
+}
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -376,14 +432,14 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  uint tix;
+  // uint tix;
   c->proc = 0;
 
   acquire(&ptable.lock);
   p = ptable.proc;
   release(&ptable.lock);
 
-  tix = ticks;
+  // tix = ticks;
   
   for(;;){
     // Enable interrupts on this processor.
@@ -398,8 +454,10 @@ scheduler(void)
     // Different policies here:
 
     // If "policy == Round Robin"
-    rr_scheduler(c, p, &tix);
+    // rr_scheduler(c, p, &tix);
 
+    //If "policy == Priority"
+    priority_scheduler(c, p);
     // Else:
 
   }
