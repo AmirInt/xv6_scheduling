@@ -89,7 +89,7 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
 
-  // (Added by me) When this thread starts, it must know that it
+  // (Added by AmirInt) When this thread starts, it must know that it
   // has no child threads.
   p->threads = 0;
 
@@ -166,7 +166,7 @@ growproc(int n)
   uint sz;
   struct proc *curproc = myproc();
 
-  // (Added by me) Locking the page table to prevent those
+  // (Added by AmirInt) Locking the page table to prevent those
   // naughty threads from causing trouble.
   acquire(&ptable.lock);
 
@@ -332,6 +332,37 @@ wait(void)
   }
 }
 
+// (Added by AmirInt) Round-Robin-schedules the CPU
+void rr_scheduler(struct cpu *c, struct proc *p, uint *tix) {
+  if (ticks - *tix >= QUANTUM) {
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+            
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      break;
+    }
+    release(&ptable.lock);
+
+    *tix = ticks;
+  }
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -345,33 +376,31 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  uint tix;
   c->proc = 0;
+
+  acquire(&ptable.lock);
+  p = ptable.proc;
+  release(&ptable.lock);
+
+  tix = ticks;
   
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+    if (p >= &ptable.proc[NPROC]) {
+      acquire(&ptable.lock);
+      p = ptable.proc;
+      release(&ptable.lock);
     }
-    release(&ptable.lock);
+
+    // Different policies here:
+
+    // If "policy == Round Robin"
+    rr_scheduler(c, p, &tix);
+
+    // Else:
 
   }
 }
@@ -554,7 +583,7 @@ procdump(void)
   }
 }
 
-// (Added by me) returns the number of active processes
+// (Added by AmirInt) returns the number of active processes
 int getProcCount(void) {
   int proc_counter = 0;
   struct proc *p;
@@ -565,7 +594,7 @@ int getProcCount(void) {
   return proc_counter;
 }
 
-// (Added by me) returns the number of read attempts whence
+// (Added by AmirInt) returns the number of read attempts whence
 // the kernel boots
 int getReadCount(void) {
   
@@ -574,7 +603,7 @@ int getReadCount(void) {
   return read_count;
 }
 
-// (Added by me) creates a thread and returns the thread ID
+// (Added by AmirInt) creates a thread and returns the thread ID
 int thread_create(void* stack) {
   int i, pid;
   struct proc *np;
@@ -631,7 +660,7 @@ int thread_create(void* stack) {
   return pid;
 }
 
-// (Added by me) makes the calling process to wait for its threads
+// (Added by AmirInt) makes the calling process to wait for its threads
 int thread_wait(void) {
   struct proc *p;
   int havekids, pid;

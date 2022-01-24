@@ -94,18 +94,18 @@ sys_uptime(void)
   return xticks;
 }
 
-// (Added by me) returns the number of active processes
+// (Added by AmirInt) returns the number of active processes
 int sys_getProcCount(void) {
   return getProcCount();
 }
 
-// (Added by me) returns the number of read attempts whence
+// (Added by AmirInt) returns the number of read attempts whence
 // the kernel boots
 int sys_getReadCount(void) {
   return getReadCount();
 }
 
-// (Added by me) creates a thread and returns the thread ID
+// (Added by AmirInt) creates a thread and returns the thread ID
 int sys_thread_create(void) {
   // Fetching the argument passed to the 'thread_create' function
   // which is the address of the allocated stack.
@@ -115,7 +115,7 @@ int sys_thread_create(void) {
   return thread_create((void*) stack);
 }
 
-// (Added by me) makes the calling process to wait for its threads
+// (Added by AmirInt) makes the calling process to wait for its threads
 int sys_thread_wait(void) {
   return thread_wait();
 }
