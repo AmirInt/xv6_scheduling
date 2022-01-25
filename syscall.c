@@ -109,6 +109,8 @@ extern int sys_getReadCount(void);
 extern int sys_thread_create(void);
 extern int sys_thread_wait(void);
 extern int sys_setPriority(void);
+extern int sys_changePolicy(void);
+
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -138,6 +140,8 @@ static int (*syscalls[])(void) = {
 [SYS_thread_create]     sys_thread_create,
 [SYS_thread_wait]       sys_thread_wait,
 [SYS_setPriority] sys_setPriority,
+[SYS_changePolicy] sys_changePolicy,
+
 
 };
 

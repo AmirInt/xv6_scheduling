@@ -5,12 +5,15 @@
 
 void run(int pid) {
     int i;
-    for (i = 0; i < 1000; ++i)
+    for (i = 0; i < 100; ++i){
         printf(1, "%d, %d\n", pid, i);
-    exit();
+        sleep(10);
+    }
+  exit();
 }
-
 int main() {
+    changePolicy(1);
+
     int i;
     for (i = 0; i < 4; ++i) {
         if (fork() == 0) {

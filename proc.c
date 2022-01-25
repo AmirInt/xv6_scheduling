@@ -7,6 +7,8 @@
 #include "proc.h"
 #include "spinlock.h"
 
+enum schedPolicy policy;
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -332,6 +334,23 @@ wait(void)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
+//(added by hadiinz)
+//0 -> DEFAULT
+//1 -> ROUND_ROBIN
+//2 -> PRIORITY
+int 
+changePolicy(int newPolicy)
+{
+  if (0 <= newPolicy && newPolicy < 3)
+  {
+    policy = newPolicy;
+    return 0;
+  }
+  //failed
+  else
+    return -1;
+}
+
 //(Added by hadiinz) set priority for priority scheduling
 int
 setPriority(int priority)
@@ -383,7 +402,7 @@ priority_scheduler(struct cpu *c, struct proc *p)
   struct proc *p_high = 0;
   int hasRunnable = 0;
   acquire(&ptable.lock);
-  for(; p < &ptable.proc[NPROC]; p++){
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if (p->state == RUNNABLE)
     {
       p_high = p;
@@ -419,6 +438,31 @@ priority_scheduler(struct cpu *c, struct proc *p)
   release(&ptable.lock);
   
 }
+void 
+default_scheduler(struct cpu *c, struct proc *p)
+{
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != RUNNABLE)
+      continue;
+
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+  }
+  release(&ptable.lock);     
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -432,14 +476,14 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  // uint tix;
+  uint tix;
   c->proc = 0;
 
   acquire(&ptable.lock);
   p = ptable.proc;
   release(&ptable.lock);
 
-  // tix = ticks;
+  tix = ticks;
   
   for(;;){
     // Enable interrupts on this processor.
@@ -451,13 +495,27 @@ scheduler(void)
       release(&ptable.lock);
     }
 
+    switch (policy)
+    {
+    case DEFAULT :
+      default_scheduler(c, p);
+      break;
+
+    case ROUND_ROBIN : 
+      rr_scheduler(c, p, &tix);
+      break;
+
+    case PRIORITY : 
+      priority_scheduler(c, p);
+      break;
+    }
     // Different policies here:
 
     // If "policy == Round Robin"
     // rr_scheduler(c, p, &tix);
 
     //If "policy == Priority"
-    priority_scheduler(c, p);
+    // priority_scheduler(c, p);
     // Else:
 
   }

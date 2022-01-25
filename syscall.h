@@ -26,3 +26,4 @@
 #define SYS_thread_create 24
 #define SYS_thread_wait 25
 #define SYS_setPriority 26
+#define SYS_changePolicy 27

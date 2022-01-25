@@ -52,8 +52,15 @@ struct proc {
 
   int stack_top;               // The top of the stack for this process
   int threads;                 // The number of child threads this process has
-  int priority;                // The priority in priority scheduling
+  int priority;                // The priority in priority 
 };
+
+enum schedPolicy {
+  DEFAULT = 0,
+  ROUND_ROBIN = 1,
+  PRIORITY = 2
+};
+extern enum schedPolicy policy;
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

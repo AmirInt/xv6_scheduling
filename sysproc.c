@@ -120,7 +120,7 @@ int sys_thread_wait(void) {
   return thread_wait();
 }
 
-
+//(added by hadiinz)
 int sys_setPriority(void)
 {
   int priority;
@@ -128,4 +128,14 @@ int sys_setPriority(void)
     return -1;
   else
     return setPriority(priority);
+}
+
+
+int sys_changePolicy(void)
+{
+  int policy;
+  if (argint(0, &policy) < 0)
+    return -1;
+  else
+    return changePolicy(policy);
 }
