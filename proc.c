@@ -365,16 +365,19 @@ int wait_findTimes(int *arrayTime)
       havekids = 1;
       if (p->state == ZOMBIE)
       {
-        // Found one.
-        // store process times for further calculations
-        int turnAroundTime = getTurnAroundTime(p->pid);
         int waitingTime = getWaitingTime(p->pid);
         int cbt = getCBT(p->pid);
+        int turnAroundTime = getTurnAroundTime(p->pid);
+        if (policy == PRIORITY)
+        {
+                  arrayTime[3] = p->priority;
 
-        arrayTime[0] = turnAroundTime;
-        arrayTime[1] = waitingTime;
+        }else
+            arrayTime[3] = p->pid;
+        
         arrayTime[2] = cbt;
-        arrayTime[3] = p->priority;
+        arrayTime[1] = waitingTime;
+        arrayTime[0] = turnAroundTime;
 
         pid = p->pid;
         kfree(p->kstack);
