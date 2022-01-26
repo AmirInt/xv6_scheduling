@@ -95,7 +95,14 @@ found:
   // has no child threads.
   p->threads = 0;
 
+  //(added by hadiinz)
   p->priority = 3;
+  //when one process is allocated ,the creation time initialized
+  p->creation_t = ticks;
+  p->sleeping_t = 0;
+  p->runnable_t = 0;
+  p->running_t = 0;
+
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -283,6 +290,8 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
+  //(added by hadiinz) hen the proces exit 
+  curproc->termination_t = ticks;
   sched();
   panic("zombie exit");
 }
@@ -334,6 +343,105 @@ wait(void)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
+
+//(added by hadiinz)
+// it is similar to wait but we fill an array of times and priority .
+// when a parent wait for children(until they will be zombie) this function fill the "*arrayTime" and we find out the times of each process.
+int wait_findTimes(int *arrayTime)
+{
+  struct proc *p;
+  int havekids, pid;
+  struct proc *curproc = myproc();
+
+  acquire(&ptable.lock);
+  for (;;)
+  {
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if (p->parent != curproc)
+        continue;
+      havekids = 1;
+      if (p->state == ZOMBIE)
+      {
+        // Found one.
+        // store process times for further calculations
+        int turnAroundTime = getTurnAroundTime(p->pid);
+        int waitingTime = getWaitingTime(p->pid);
+        int cbt = getCBT(p->pid);
+
+        arrayTime[0] = turnAroundTime;
+        arrayTime[1] = waitingTime;
+        arrayTime[2] = cbt;
+        arrayTime[3] = p->priority;
+
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if (!havekids || curproc->killed)
+    {
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock); //DOC: wait-sleep
+  }
+}
+int getWaitingTime(int pid)
+{
+  return (&ptable.proc[pid])->sleeping_t + (&ptable.proc[pid])->runnable_t;
+}
+
+int getTurnAroundTime(int pid)
+{
+  return (&ptable.proc[pid])->sleeping_t + (&ptable.proc[pid])->runnable_t + (&ptable.proc[pid])->running_t;
+}
+
+int getCBT(int pid)
+{
+  return (&ptable.proc[pid])->running_t;
+}
+
+//(added by hadiinz) update time in each process in every states
+void updateProcTimes()
+{
+  struct proc *p;
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    switch (p->state)
+    {
+    case RUNNING:
+      p->running_t++;
+      break;
+
+    case RUNNABLE:
+      p->runnable_t++;
+      break;
+
+    case SLEEPING:
+      p->sleeping_t++;
+      break;   
+
+    default:
+      break;
+    }
+  }
+}
+
 //(added by hadiinz)
 //0 -> DEFAULT
 //1 -> ROUND_ROBIN
@@ -402,6 +510,7 @@ priority_scheduler(struct cpu *c, struct proc *p)
   struct proc *p_high = 0;
   int hasRunnable = 0;
   acquire(&ptable.lock);
+  //choose the first ready process
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if (p->state == RUNNABLE)
     {

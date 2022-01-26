@@ -30,6 +30,11 @@ int thread_create(void* stack);
 int thread_wait(void);
 int setPriority(int priority);
 int changePolicy(int newPolicy);
+int getCBT(int pid);
+int getTurnAroundTime(int pid);
+int getWaitingTime(int pid);
+int wait_findTimes(int *arrayTime);
+
 
 
 // ulib.c

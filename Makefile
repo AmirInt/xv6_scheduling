@@ -185,7 +185,7 @@ UPROGS=\
 	_getReadCountTest\
 	_threadsTest\
 	_schedTest\
-	_pSchedTest\
+	_prioritySchedTest\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -262,7 +262,7 @@ EXTRA=\
 	getReadCountTest.c\
 	threadsTest.c\
 	schedTest.c\
-	pSchedTest.c\
+	prioritySchedTest.c\
 
 dist:
 	rm -rf dist

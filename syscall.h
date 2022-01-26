@@ -27,3 +27,7 @@
 #define SYS_thread_wait 25
 #define SYS_setPriority 26
 #define SYS_changePolicy 27
+#define SYS_getCBT 28
+#define SYS_getTurnAroundTime 29
+#define SYS_getWaitingTime 30
+#define SYS_wait_findTimes 31

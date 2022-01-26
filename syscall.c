@@ -110,7 +110,10 @@ extern int sys_thread_create(void);
 extern int sys_thread_wait(void);
 extern int sys_setPriority(void);
 extern int sys_changePolicy(void);
-
+extern int sys_wait_findTimes(void);
+extern int sys_getTurnAroundTime(void);
+extern int sys_getWaitingTime(void);
+extern int sys_getCBT(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -141,6 +144,11 @@ static int (*syscalls[])(void) = {
 [SYS_thread_wait]       sys_thread_wait,
 [SYS_setPriority] sys_setPriority,
 [SYS_changePolicy] sys_changePolicy,
+[SYS_wait_findTimes] sys_wait_findTimes,
+[SYS_getTurnAroundTime] sys_getTurnAroundTime,
+[SYS_getWaitingTime] sys_getWaitingTime,
+[SYS_getCBT] sys_getCBT,
+
 
 
 };

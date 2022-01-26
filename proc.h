@@ -53,6 +53,12 @@ struct proc {
   int stack_top;               // The top of the stack for this process
   int threads;                 // The number of child threads this process has
   int priority;                // The priority in priority 
+  int creation_t;              // when this process was created (turn into EMBRYO)
+  int termination_t;           // Time when process was terminated (turn into ZOMBIE)
+  int sleeping_t;              // Time in SLEEPING state
+  int runnable_t;              // Time in RUNNABLE state
+  int running_t;               // Time in RUNNING state
+  
 };
 
 enum schedPolicy {
