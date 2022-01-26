@@ -132,6 +132,8 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  p->rrr = QUANTUM;
+
   return p;
 }
 
@@ -349,79 +351,19 @@ wait(void)
   }
 }
 
-//(added by hadiinz)
-// it is similar to wait but we fill an array of times and priority .
-// when a parent wait for children(until they will be zombie) this function fill the "*arrayTime" and we find out the times of each process.
-int wait_findTimes(int *arrayTime)
+int getWaitingTime()
 {
-  struct proc *p;
-  int havekids, pid;
-  struct proc *curproc = myproc();
-
-  acquire(&ptable.lock);
-  for (;;)
-  {
-    // Scan through table looking for exited children.
-    havekids = 0;
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    {
-      if (p->parent != curproc)
-        continue;
-      havekids = 1;
-      if (p->state == ZOMBIE)
-      {
-        int waitingTime = getWaitingTime(p->pid);
-        int cbt = getCBT(p->pid);
-        int turnAroundTime = getTurnAroundTime(p->pid);
-        if (policy == PRIORITY)
-        {
-                  arrayTime[3] = p->priority;
-
-        }else
-            arrayTime[3] = p->pid;
-        
-        arrayTime[2] = cbt;
-        arrayTime[1] = waitingTime;
-        arrayTime[0] = turnAroundTime;
-
-        pid = p->pid;
-        kfree(p->kstack);
-        p->kstack = 0;
-        freevm(p->pgdir);
-        p->pid = 0;
-        p->parent = 0;
-        p->name[0] = 0;
-        p->killed = 0;
-        p->state = UNUSED;
-        release(&ptable.lock);
-        return pid;
-      }
-    }
-
-    // No point waiting if we don't have any children.
-    if (!havekids || curproc->killed)
-    {
-      release(&ptable.lock);
-      return -1;
-    }
-
-    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    sleep(curproc, &ptable.lock); //DOC: wait-sleep
-  }
-}
-int getWaitingTime(int pid)
-{
-  return (&ptable.proc[pid])->sleeping_t + (&ptable.proc[pid])->runnable_t;
+  return myproc()->sleeping_t + myproc()->runnable_t;
 }
 
-int getTurnAroundTime(int pid)
+int getTurnAroundTime()
 {
-  return (&ptable.proc[pid])->sleeping_t + (&ptable.proc[pid])->runnable_t + (&ptable.proc[pid])->running_t;
+  return myproc()->sleeping_t + myproc()->runnable_t + myproc()->running_t;
 }
 
-int getCBT(int pid)
+int getCBT()
 {
-  return (&ptable.proc[pid])->running_t;
+  return myproc()->running_t;
 }
 
 //(added by hadiinz) update time in each process in every states
@@ -432,20 +374,17 @@ void updateProcTimes()
   {
     switch (p->state)
     {
-    case RUNNING:
-      p->running_t++;
-      break;
-
-    case RUNNABLE:
-      p->runnable_t++;
-      break;
-
-    case SLEEPING:
-      p->sleeping_t++;
-      break;   
-
-    default:
-      break;
+      case RUNNING:
+        p->running_t++;
+        break;
+      case RUNNABLE:
+        p->runnable_t++;
+        break;
+      case SLEEPING:
+        p->sleeping_t++;
+        break;
+      default:
+        break;
     }
   }
 }
@@ -516,10 +455,10 @@ void def_scheduler(struct cpu *c, struct proc *p) {
 }
 
 // (Added by AmirInt) Round-Robin-schedules the CPU
-void rr_scheduler(struct cpu *c, struct proc **p, uint *tix) {
+void rr_scheduler(struct cpu *c, struct proc **p) {
 
   acquire(&ptable.lock);
-  if ((*p)->state != RUNNING && (*p)->state != ZOMBIE) {
+  if ((*p)->state != RUNNING) {
     struct proc *pr = *p;
     int found = 0;
     // Loop over process table looking for process to run.
@@ -538,12 +477,6 @@ void rr_scheduler(struct cpu *c, struct proc **p, uint *tix) {
         switch_context(c, *p);
         break;
       }
-    if (found == 1 && (*p)->pid > 2) {
-      cprintf("to: %d %d\n\n", c->apicid, (*p)->pid);
-
-    }
-  
-    *tix = ticks;
   }
   
   release(&ptable.lock);
@@ -595,10 +528,10 @@ priority_scheduler(struct cpu *c, struct proc *p)
 }
 
 // (Added by AmirInt) Multilayered-Priority-schedules the CPU
-void mlp_scheduler(struct cpu *c, struct proc **p, uint *tix) {
+void mlp_scheduler(struct cpu *c, struct proc **p) {
   
   acquire(&ptable.lock);
-  if (((*p)->state != RUNNING && (*p)->state != ZOMBIE) || new_proc == 1) {
+  if ((*p)->state != RUNNING || new_proc == 1) {
 
     struct proc *pr = *p;
     int found = 0;
@@ -633,16 +566,15 @@ void mlp_scheduler(struct cpu *c, struct proc **p, uint *tix) {
 
     }
     new_proc = 0;
-    *tix = ticks;
   }
   release(&ptable.lock);
 }
 
 // (Added by AmirInt) Multilayered-Priority-schedules the CPU
-void dmlp_scheduler(struct cpu *c, struct proc **p, uint *tix) {
+void dmlp_scheduler(struct cpu *c, struct proc **p) {
   
   acquire(&ptable.lock);
-  if (((*p)->state != RUNNING && (*p)->state != ZOMBIE) || new_proc == 1) {
+  if ((*p)->state != RUNNING || new_proc == 1) {
 
     struct proc *pr = *p;
     int found = 0;
@@ -680,7 +612,6 @@ void dmlp_scheduler(struct cpu *c, struct proc **p, uint *tix) {
 
     }
     new_proc = 0;
-    *tix = ticks;
   }
   release(&ptable.lock);
 }
@@ -698,10 +629,7 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  uint tix;
   c->proc = 0;
-
-  policy = DYNAMIC_MLP;
 
   p = ptable.proc;
   
@@ -709,24 +637,23 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    // switch (policy)
-    // {
-    // case DEFAULT:
-      // def_scheduler(c, p);
-    //   break;
-    // case ROUND_ROBIN:
-      // rr_scheduler(c, &p, &tix);
-    
-      // break;
-    // case PRIORITY:
-    //   priority_scheduler(c, p);
-    //   break;
-    // case MULTILAYERED_PRIORITY:
-      // mlp_scheduler(c, &p, &tix);
-      // case DYNAMIC_MLP:
-        dmlp_scheduler(c, &p, &tix);
-    //   break;
-    // }
+    switch (policy) {
+      case DEFAULT:
+        def_scheduler(c, p);
+        break;
+      case ROUND_ROBIN:
+        rr_scheduler(c, &p);
+        break;
+      case PRIORITY:
+        priority_scheduler(c, p);
+        break;
+      case MULTILAYERED_PRIORITY:
+        mlp_scheduler(c, &p);
+        break;
+      case DYNAMIC_MLP:
+        dmlp_scheduler(c, &p);
+        break;
+    }
   }
 }
 

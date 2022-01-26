@@ -144,43 +144,17 @@ sys_changePolicy(void)
 int 
 sys_getCBT(void)
 {
-  int pid;
-  if (argint(0, &pid) < 0)
-    return -1;
-  else
-    return getCBT(pid);
+  return getCBT();
 }
 
 int 
 sys_getTurnAroundTime(void)
 {
-  int pid;
-  if (argint(0, &pid) < 0)
-    return -1;
-  else
-    return getTurnAroundTime(pid);
+  return getTurnAroundTime();
 }
 
 int 
 sys_getWaitingTime(void)
 {
-  int pid;
-  if (argint(0, &pid) < 0)
-    return -1;
-  else
-    return getWaitingTime(pid);
-}
-
-int sys_wait_findTimes(void)
-{
-  int *arrayTime;
-  //check the pointer ,points to valid address
-  if (argptr(0, (void *)&arrayTime, sizeof(*arrayTime)) < 0)
-  {
-    return -1;
-  }
-  else
-  {
-    return wait_findTimes(arrayTime);
-  }
+  return getWaitingTime();
 }

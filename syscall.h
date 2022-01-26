@@ -30,4 +30,3 @@
 #define SYS_getCBT 28
 #define SYS_getTurnAroundTime 29
 #define SYS_getWaitingTime 30
-#define SYS_wait_findTimes 31

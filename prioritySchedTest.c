@@ -56,7 +56,6 @@ int main() {
 
         // wait for children
         //this function help us to clculate times
-        while (wait_findTimes(arrayTime) > 0)
         {
             int childTurnaround = arrayTime[0];
             int childWaiting = arrayTime[1];

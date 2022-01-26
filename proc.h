@@ -54,12 +54,13 @@ struct proc {
   int threads;                 // The number of child threads this process has
   int priority;                // The priority of this process
   int full_time_runner;        // How much this process ran the last time
+  int rrr;
   int creation_t;              // when this process was created (turn into EMBRYO)
   int termination_t;           // Time when process was terminated (turn into ZOMBIE)
   int sleeping_t;              // Time in SLEEPING state
   int runnable_t;              // Time in RUNNABLE state
   int running_t;               // Time in RUNNING state
-  
+
 };
 
 // Process memory is laid out contiguously, low addresses first:
