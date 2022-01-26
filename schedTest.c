@@ -5,14 +5,14 @@
 
 void run(int pid) {
     int i;
-    for (i = 0; i < 100; ++i){
-        printf(1, "%d, %d\n", pid, i);
-        sleep(10);
+    for (i = 0; i < 100; ++i) {
+        for(long j = 0;; j++);
     }
-  exit();
+    exit();
 }
+
 int main() {
-    changePolicy(1);
+    // changePolicy(1);
 
     int i;
     for (i = 0; i < 4; ++i) {

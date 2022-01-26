@@ -19,6 +19,11 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
 
+  // (Added by AmirInt) the calling process' priority must reset 
+  // to the default value
+  if (policy == DYNAMIC_MLP)
+    curproc->priority = 3;
+
   begin_op();
 
   if((ip = namei(path)) == 0){
@@ -101,8 +106,6 @@ exec(char *path, char **argv)
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
-  
-  // curproc->priority = 3;
   
   switchuvm(curproc);
   freevm(oldpgdir);

@@ -52,7 +52,8 @@ struct proc {
 
   int stack_top;               // The top of the stack for this process
   int threads;                 // The number of child threads this process has
-  int priority;                // The priority in priority 
+  int priority;                // The priority of this process
+  int full_time_runner;        // How much this process ran the last time
   int creation_t;              // when this process was created (turn into EMBRYO)
   int termination_t;           // Time when process was terminated (turn into ZOMBIE)
   int sleeping_t;              // Time in SLEEPING state
@@ -61,15 +62,17 @@ struct proc {
   
 };
 
-enum schedPolicy {
-  DEFAULT = 0,
-  ROUND_ROBIN = 1,
-  PRIORITY = 2
-};
-extern enum schedPolicy policy;
-
 // Process memory is laid out contiguously, low addresses first:
 //   text
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+enum schedPolicy {
+  DEFAULT = 0,
+  ROUND_ROBIN = 1,
+  PRIORITY = 2,
+  MULTILAYERED_PRIORITY = 3,
+  DYNAMIC_MLP = 4
+};
+enum schedPolicy policy;

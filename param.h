@@ -13,5 +13,5 @@
 #define FSSIZE       1000  // size of file system in blocks
 
 // Added by AmirInt
-#define QUANTUM 4
+#define QUANTUM 5000
 

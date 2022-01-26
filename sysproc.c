@@ -7,7 +7,7 @@
 #include "mmu.h"
 #include "proc.h"
 
-// (Manually added) variable storing the number of read attempts
+// (Added by AmirInt) variable storing the number of read attempts
 // whence the kernel boots
 extern int read_count;
 

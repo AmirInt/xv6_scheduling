@@ -7,8 +7,6 @@
 #include "proc.h"
 #include "spinlock.h"
 
-enum schedPolicy policy;
-
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -17,6 +15,12 @@ struct {
 static struct proc *initproc;
 
 int nextpid = 1;
+
+// (Added by AmirInt)
+//   new_proc: determines if a new process has started
+//   must call ptable.lock before accessing 
+int new_proc;
+
 extern void forkret(void);
 extern void trapret(void);
 
@@ -102,6 +106,8 @@ found:
   p->sleeping_t = 0;
   p->runnable_t = 0;
   p->running_t = 0;
+
+  p->full_time_runner = 0;
 
   release(&ptable.lock);
 
@@ -240,9 +246,8 @@ fork(void)
   pid = np->pid;
 
   acquire(&ptable.lock);
-
   np->state = RUNNABLE;
-
+  new_proc = 1;
   release(&ptable.lock);
 
   return pid;
@@ -445,14 +450,15 @@ void updateProcTimes()
   }
 }
 
-//(added by hadiinz)
-//0 -> DEFAULT
-//1 -> ROUND_ROBIN
-//2 -> PRIORITY
+// (added by hadiinz)
+//   0 -> DEFAULT
+//   1 -> ROUND_ROBIN
+//   2 -> PRIORITY
+//   3 -> MULTILAYERED_PRIORITY
 int 
 changePolicy(int newPolicy)
 {
-  if (0 <= newPolicy && newPolicy < 3)
+  if (0 <= newPolicy && newPolicy < 4)
   {
     policy = newPolicy;
     return 0;
@@ -466,7 +472,11 @@ changePolicy(int newPolicy)
 int
 setPriority(int priority)
 {
+  if (policy == DYNAMIC_MLP)
+    return 0;
+  
   struct proc *p = myproc();
+  
   if (1 <= priority && priority <= 6)
   {
     p->priority = priority;
@@ -476,36 +486,69 @@ setPriority(int priority)
   return 1;
 }
 
+// (Added by AmirInt) context-switches the given cpu onto the given process
+void switch_context(struct cpu *c, struct proc *p) {
+  // Switch to chosen process.  It is the process's job
+  // to release ptable.lock and then reacquire it
+  // before jumping back to us.
+  c->proc = p;
+  switchuvm(p);
+  p->state = RUNNING;
+
+  swtch(&(c->scheduler), p->context);
+  switchkvm();
+        
+  // Process is done running for now.
+  // It should have changed its p->state before coming back.
+  c->proc = 0;
+}
+
+// (Added by AmirInt) Default Scheduler
+void def_scheduler(struct cpu *c, struct proc *p) {
+  // Loop over process table looking for process to run.
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != RUNNABLE)
+      continue;
+    switch_context(c, p);
+  }
+  release(&ptable.lock);
+}
+
 // (Added by AmirInt) Round-Robin-schedules the CPU
-void rr_scheduler(struct cpu *c, struct proc *p, uint *tix) {
-  if (ticks - *tix >= QUANTUM) {
+void rr_scheduler(struct cpu *c, struct proc **p, uint *tix) {
 
+  acquire(&ptable.lock);
+  if ((*p)->state != RUNNING && (*p)->state != ZOMBIE) {
+    struct proc *pr = *p;
+    int found = 0;
     // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+    for(++(*p); *p < &ptable.proc[NPROC]; ++(*p)){
+      if((*p)->state != RUNNABLE)
         continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-            
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+      found = 1;
+      switch_context(c, *p);
       break;
     }
-    release(&ptable.lock);
+    if (found == 0)
+      for(*p = ptable.proc; *p <= pr; ++(*p)){
+        if((*p)->state != RUNNABLE)
+          continue;
+        found = 1;
+        switch_context(c, *p);
+        break;
+      }
+    if (found == 1 && (*p)->pid > 2) {
+      cprintf("to: %d %d\n\n", c->apicid, (*p)->pid);
 
+    }
+  
     *tix = ticks;
   }
+  
+  release(&ptable.lock);
 }
+
 //added by Hadiinz (priority scheduling)
 void
 priority_scheduler(struct cpu *c, struct proc *p)
@@ -550,29 +593,96 @@ priority_scheduler(struct cpu *c, struct proc *p)
   release(&ptable.lock);
   
 }
-void 
-default_scheduler(struct cpu *c, struct proc *p)
-{
+
+// (Added by AmirInt) Multilayered-Priority-schedules the CPU
+void mlp_scheduler(struct cpu *c, struct proc **p, uint *tix) {
+  
   acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state != RUNNABLE)
-      continue;
+  if (((*p)->state != RUNNING && (*p)->state != ZOMBIE) || new_proc == 1) {
 
-    // Switch to chosen process.  It is the process's job
-    // to release ptable.lock and then reacquire it
-    // before jumping back to us.
-    c->proc = p;
-    switchuvm(p);
-    p->state = RUNNING;
+    struct proc *pr = *p;
+    int found = 0;
 
-    swtch(&(c->scheduler), p->context);
-    switchkvm();
+    // Loop over process table looking for process to run.
+    if (new_proc == 1 && (*p)->priority > 1) {
+      for(pr = ptable.proc; pr < &ptable.proc[NPROC]; ++pr)
+        if(pr->state == RUNNABLE && pr->priority < (*p)->priority) {
+          *p = pr;
+          switch_context(c, *p);
+        }
+    }
+    else if (new_proc == 0) {
+      for(++(*p); *p < &ptable.proc[NPROC]; ++(*p)){
+        if((*p)->state != RUNNABLE || (*p)->priority > pr->priority)
+          continue;
+        found = 1;
+        switch_context(c, *p);
+        break;
+      }
+      if (found == 0)
+        for(*p = ptable.proc; *p <= pr; ++(*p)){
+          if((*p)->state != RUNNABLE || (*p)->priority > pr->priority)
+            continue;
+          found = 1;
+          switch_context(c, *p);
+          break;
+        }
+    }
+    if (found == 1 && (*p)->pid > 2) {
+      cprintf("to: %d (%d, %d)\n\n", c->apicid, (*p)->pid, (*p)->priority);
 
-    // Process is done running for now.
-    // It should have changed its p->state before coming back.
-    c->proc = 0;
+    }
+    new_proc = 0;
+    *tix = ticks;
   }
-  release(&ptable.lock);     
+  release(&ptable.lock);
+}
+
+// (Added by AmirInt) Multilayered-Priority-schedules the CPU
+void dmlp_scheduler(struct cpu *c, struct proc **p, uint *tix) {
+  
+  acquire(&ptable.lock);
+  if (((*p)->state != RUNNING && (*p)->state != ZOMBIE) || new_proc == 1) {
+
+    struct proc *pr = *p;
+    int found = 0;
+
+    if ((*p)->full_time_runner == 1 && (*p)->priority < 6)
+      ++(*p)->priority;
+
+    // Loop over process table looking for process to run.
+    if (new_proc == 1 && (*p)->priority > 1) {
+      for(pr = ptable.proc; pr < &ptable.proc[NPROC]; ++pr)
+        if(pr->state == RUNNABLE && pr->priority < (*p)->priority) {
+          *p = pr;
+          switch_context(c, *p);
+        }
+    }
+    else if (new_proc == 0) {
+      for(++(*p); *p < &ptable.proc[NPROC]; ++(*p)){
+        if((*p)->state != RUNNABLE || (*p)->priority > pr->priority)
+          continue;
+        found = 1;
+        switch_context(c, *p);
+        break;
+      }
+      if (found == 0)
+        for(*p = ptable.proc; *p <= pr; ++(*p)){
+          if((*p)->state != RUNNABLE || (*p)->priority > pr->priority)
+            continue;
+          found = 1;
+          switch_context(c, *p);
+          break;
+        }
+    }
+    if (found == 1 && (*p)->pid > 2) {
+      cprintf("to: %d (%d, %d)\n\n", c->apicid, (*p)->pid, (*p)->priority);
+
+    }
+    new_proc = 0;
+    *tix = ticks;
+  }
+  release(&ptable.lock);
 }
 
 //PAGEBREAK: 42
@@ -591,45 +701,32 @@ scheduler(void)
   uint tix;
   c->proc = 0;
 
-  acquire(&ptable.lock);
-  p = ptable.proc;
-  release(&ptable.lock);
+  policy = DYNAMIC_MLP;
 
-  tix = ticks;
+  p = ptable.proc;
   
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
-    if (p >= &ptable.proc[NPROC]) {
-      acquire(&ptable.lock);
-      p = ptable.proc;
-      release(&ptable.lock);
-    }
-
-    switch (policy)
-    {
-    case DEFAULT :
-      default_scheduler(c, p);
-      break;
-
-    case ROUND_ROBIN : 
-      rr_scheduler(c, p, &tix);
-      break;
-
-    case PRIORITY : 
-      priority_scheduler(c, p);
-      break;
-    }
-    // Different policies here:
-
-    // If "policy == Round Robin"
-    // rr_scheduler(c, p, &tix);
-
-    //If "policy == Priority"
-    // priority_scheduler(c, p);
-    // Else:
-
+    // switch (policy)
+    // {
+    // case DEFAULT:
+      // def_scheduler(c, p);
+    //   break;
+    // case ROUND_ROBIN:
+      // rr_scheduler(c, &p, &tix);
+    
+      // break;
+    // case PRIORITY:
+    //   priority_scheduler(c, p);
+    //   break;
+    // case MULTILAYERED_PRIORITY:
+      // mlp_scheduler(c, &p, &tix);
+      // case DYNAMIC_MLP:
+        dmlp_scheduler(c, &p, &tix);
+    //   break;
+    // }
   }
 }
 
@@ -665,6 +762,7 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+  myproc()->full_time_runner = 1;
   sched();
   release(&ptable.lock);
 }
@@ -738,8 +836,11 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan) {
+      if (policy == DYNAMIC_MLP)
+        p->priority = 1;
       p->state = RUNNABLE;
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -880,9 +981,8 @@ int thread_create(void* stack) {
   np->pid = pid;
 
   acquire(&ptable.lock);
-
   np->state = RUNNABLE;
-
+  new_proc = 1;
   release(&ptable.lock);
 
   return pid;
