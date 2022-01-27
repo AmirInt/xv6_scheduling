@@ -561,10 +561,10 @@ void mlp_scheduler(struct cpu *c, struct proc **p) {
           break;
         }
     }
-    if (found == 1 && (*p)->pid > 2) {
-      cprintf("to: %d (%d, %d)\n\n", c->apicid, (*p)->pid, (*p)->priority);
+    // if (found == 1 && (*p)->pid > 2) {
+    //   cprintf("to: %d (%d, %d)\n\n", c->apicid, (*p)->pid, (*p)->priority);
 
-    }
+    // }
     new_proc = 0;
   }
   release(&ptable.lock);

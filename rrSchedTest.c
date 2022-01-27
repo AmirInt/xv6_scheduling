@@ -18,7 +18,7 @@ struct info {
 
 void run(void* arg) {
     struct info *thread_info = (struct info*) arg;
-    for (int i = 0; i < 100; ++i){
+    for (int i = 0; i < 1000; ++i){
         printf(1, "%d, %d\n", thread_info->i, i);
         sleep(10);
     }
